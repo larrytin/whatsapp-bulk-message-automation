@@ -19,12 +19,9 @@ class WhatsappMessage(object):
     """
 
     def __init__(self, **kwargs):
-        self.sheet_id = kwargs.get('sheet_id')
         self.sheet_name = kwargs.get('sheet_name')
         self.image_path = kwargs.get('image_path')
-        self.sheet_gid = kwargs.get('sheet_gid')
-        self.url = f'https://docs.google.com/spreadsheets/d/{
-            self.sheet_id}/export?format=xlsx&gid={self.sheet_gid}'
+        self.url = kwargs.get('recipients_xlsx')
         self.excel_data = None
         self.driver = None
         self.driver_wait = None
@@ -39,8 +36,7 @@ class WhatsappMessage(object):
 
     def read_data(self):
         # Read data from excel
-        self.excel_data = pd.read_excel(
-            self.url, sheet_name=self.sheet_name, engine='openpyxl')
+        self.excel_data = pd.read_excel(self.url, sheet_name=self.sheet_name, engine='openpyxl')
 
     def load_driver(self):
         # Load the chrome driver
@@ -75,8 +71,8 @@ class WhatsappMessage(object):
             # Send contact number in search box
             contact_number = str(column)
 
-            if len(contact_number) == 10 or not contact_number.startswith('91'):
-                contact_number = '91' + contact_number
+            # if len(contact_number) == 10 or not contact_number.startswith('91'):
+            #     contact_number = '91' + contact_number
             person_title.send_keys(contact_number)
 
             # Wait for 2 seconds to search contact number
@@ -87,8 +83,7 @@ class WhatsappMessage(object):
                 self.driver.find_element(
                     "xpath", '//*[@id="pane-side"]/div[1]/div/span')
 
-                user_url = f'https://web.whatsapp.com/send?phone={
-                    contact_number}'
+                user_url = f'https://web.whatsapp.com/send?phone={contact_number}'
                 self.driver.get(user_url)
 
                 # Wait for 5 seconds to load user chat message
@@ -98,7 +93,7 @@ class WhatsappMessage(object):
                 person_title.send_keys(Keys.ENTER)
 
             if self.image_path is not None:
-                attachment_button_path = '//div[@title="Attach"]'
+                attachment_button_path = '//span[@data-icon="attach-menu-plus"]'
                 attachment_button = self.driver_wait.until(lambda driver: driver.find_element("xpath",
                                                                                               attachment_button_path))
                 attachment_button.click()
@@ -106,8 +101,9 @@ class WhatsappMessage(object):
                 image_button = self.driver_wait.until(
                     lambda driver: driver.find_element("xpath", image_button_path))
                 image_button.send_keys(self.image_path)
-                time.sleep(10)
-                self.send_message(message)
+                time.sleep(3)
+                if message:
+                    self.send_message(message)
 
             else:
                 self.send_message(message)
@@ -142,9 +138,8 @@ class WhatsappMessage(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Whatsapp Bulk Message Automation with optional Attachment feature')
-    parser.add_argument('sheet_id', help='Google Sheet Id', type=str)
-    parser.add_argument('sheet_name', help='Google Sheet name', type=str)
-    parser.add_argument('sheet_gid', help='Google Sheet gid', type=int)
+    parser.add_argument('sheet_name', help='Sheet name', type=str)
+    parser.add_argument('recipients_xlsx', help='whatsapp_recipients.xlsx', type=str)
     parser.add_argument(
         '--image-path', help='Full path of image attachment', type=str, dest='image_path')
     parsed_args = parser.parse_args()

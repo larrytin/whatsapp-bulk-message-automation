@@ -30,13 +30,18 @@ class WhatsappMessage(object):
         try:
             self.read_data()
             self.load_driver()
-            self.process_message()
+            send_time = self.process_message()
+            self.excel_data['发送时间'] = pd.Series(send_time)
+            # 创建一个 ExcelWriter 对象
+            with pd.ExcelWriter(self.url, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                # 将新的 DataFrame 写入到特定的工作表中
+                self.excel_data.reset_index('Contact').to_excel(writer, sheet_name=self.sheet_name, index=False)
         finally:
             self.close_driver()
 
     def read_data(self):
         # Read data from excel
-        self.excel_data = pd.read_excel(self.url, sheet_name=self.sheet_name, engine='openpyxl')
+        self.excel_data = pd.read_excel(self.url, sheet_name=self.sheet_name, engine='openpyxl', dtype=str).set_index('Contact')
 
     def load_driver(self):
         # Load the chrome driver
@@ -54,9 +59,10 @@ class WhatsappMessage(object):
 
     def process_message(self):
         count = 0
+        send_time = {}
         self.driver.set_page_load_timeout(60)
         # Iterate excel rows till to finish
-        for column in self.excel_data['Contact'].tolist():
+        for column in self.excel_data.index[self.excel_data['发送时间'].isna() | (self.excel_data['发送时间'] == '')]:
             # Assign customized message
             message = self.excel_data['Message'][0]
 
@@ -80,9 +86,7 @@ class WhatsappMessage(object):
 
             try:
                 # Load error message in case unavailability of contact number
-                self.driver.find_element(
-                    "xpath", '//*[@id="pane-side"]/div[1]/div/span')
-
+                self.driver.find_element("xpath", '//*[@id="pane-side"]/div[1]/div/span')
                 user_url = f'https://web.whatsapp.com/send?phone={contact_number}'
                 self.driver.get(user_url)
 
@@ -101,9 +105,8 @@ class WhatsappMessage(object):
                 image_button = self.driver_wait.until(
                     lambda driver: driver.find_element("xpath", image_button_path))
                 image_button.send_keys(self.image_path)
-                time.sleep(3)
-                if message:
-                    self.send_message(message)
+                time.sleep(2)
+                self.send_message(message)
 
             else:
                 self.send_message(message)
@@ -111,6 +114,8 @@ class WhatsappMessage(object):
             timelapse = randrange(3, 10)
             time.sleep(timelapse)
             count = count + 1
+            send_time[contact_number] = time.strftime("%Y-%m-%d %H:%M:%S")
+        return send_time
 
     def send_message(self, message):
         # Format the message from excel sheet
